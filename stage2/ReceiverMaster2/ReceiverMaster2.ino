@@ -65,14 +65,14 @@ String row[BLOCKS][PINS_PER_BLOCK][DATA_PER_PIN] = { "" };
 char s0[] PROGMEM = "start";
 char s1[] PROGMEM = "end";
 char s2[] PROGMEM = "rfid";
-char s3[] PROGMEM = "digit";
+char s3[] PROGMEM = "printsd";
 //This is our look up table. It says which function to call when a particular string is received
 FuncEntry_t functionTable[] PROGMEM = {
 //   String     Function
     {s0,        sayHello        },
     {s1,        sayBye          },
     {s2,        getTag          },
-    {s3,        add   }
+    {s3,        printSD   }
     };
 //this is the compile time calculation of the length of our look up table.
 int funcTableLength = (sizeof functionTable / sizeof functionTable[0]);     //number of elements in the function table
@@ -81,7 +81,9 @@ MsgParser myParser;     //this creates our parser
 //Init
 void setup()
 {
-  Serial.begin(9600);
+//  Serial.begin(9600,SERIAL_8O2);
+    Serial.begin(9600);
+
   //Serial LCD setup
   lcd.clear();
   //lcd.print("begin");
@@ -101,15 +103,6 @@ void setup()
   Serial.println("initialization done.");
  
   OpenSD();
-  
-  //testing area!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-//  Serial.println();
-//  for(int i=0;i<BLOCKS;i++) {
-//    for(int j=0;j<PINS_PER_BLOCK;j++) {
-//      Serial.print(row[i][j][0]);
-//      Serial.println(row[i][j][1]);
-//    }
-//  }
 
 //msg parser setup
     Serial1.begin(9600);
@@ -121,9 +114,10 @@ void setup()
 
 void loop()
 {
-   read_sender();
+   //read_sender();
    //if we received any bytes from the serial port, pass them to the parser
    while ( Serial1.available() )  myParser.processByte(Serial1.read () );
+   while ( Serial.available() )  myParser.processByte(Serial.read () );
 }
 
 //Wire probe on the reciever is wired to the arduino's serial input.
@@ -149,7 +143,7 @@ void read_sender()
   ReceivedChannelNumber=s;
 }
 
-void Compare(int scannedTag)
+void Compare(long scannedTag)
 {
   int index;
   
@@ -180,7 +174,7 @@ void Compare(int scannedTag)
 //    Serial.print("rfid: ");
 //    Serial.println(scannedTag);
 
-    if(scannedTag == SDtag)
+    if(scannedTag == (long)SDtag)
     {
       Serial.print("TempVal equals tag#");
       if(ReceivedChannelNumber.toInt()==index+1)
@@ -314,7 +308,6 @@ void OpenSD()
 */
 void sayHello(){}
 void sayBye() {}
-void add() {}
 void getTag()
 {
     long rfidNumber;
@@ -323,6 +316,18 @@ void getTag()
     Serial.print("found ");
     Serial.println (rfidNumber);
     Compare(rfidNumber);
+}
+void printSD() {
+    Serial.println("---------------------------");
+    Serial.println("SD printout:");
+    for(int i=0;i<BLOCKS;i++) {
+      for(int j=0;j<PINS_PER_BLOCK;j++) {
+        Serial.print("rfid tag: ");
+        Serial.print(row[i][j][0]);
+        Serial.print(" | device name: ");
+        Serial.println(row[i][j][1]);
+      }
+    }
 }
 //This function is called when the msgParser gets a command that it didnt handle.
 void commandNotFound(uint8_t* pCmd, uint16_t length)
