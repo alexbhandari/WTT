@@ -57,21 +57,23 @@ int index_row=0;
 String ReceivedChannelNumber;
 static int selected_block;
 String row[BLOCKS][PINS_PER_BLOCK][DATA_PER_PIN] = { "" };
+long high = 0;
+boolean received = false;
 
 //msgparser vars
 
 //list of strings. You can have as many as you want.
 //each string is saved in flash memory only and does not take up any ram.
 char s0[] PROGMEM = "start";
-char s1[] PROGMEM = "end";
-char s2[] PROGMEM = "rfid";
+char s1[] PROGMEM = "rhigh";
+char s2[] PROGMEM = "rlow";
 char s3[] PROGMEM = "printsd";
 //This is our look up table. It says which function to call when a particular string is received
 FuncEntry_t functionTable[] PROGMEM = {
 //   String     Function
     {s0,        sayHello        },
-    {s1,        sayBye          },
-    {s2,        getTag          },
+    {s1,        getHighTag          },
+    {s2,        getLowTag          },
     {s3,        printSD   }
     };
 //this is the compile time calculation of the length of our look up table.
@@ -96,13 +98,15 @@ void setup()
   pinMode(10, OUTPUT);
    
 //  if (!SD.begin(6)) {
-  if (!SD.begin(10,11,12,13)) {
+  while (!SD.begin(10,11,12,13)) {
     Serial.println("initialization failed!");
-    return;
+    //return;
   }
   Serial.println("initialization done.");
  
   OpenSD();
+  
+  printSD();
 
 //msg parser setup
     Serial1.begin(9600);
@@ -114,10 +118,10 @@ void setup()
 
 void loop()
 {
-   //read_sender();
+   read_sender();
    //if we received any bytes from the serial port, pass them to the parser
    while ( Serial1.available() )  myParser.processByte(Serial1.read () );
-   while ( Serial.available() )  myParser.processByte(Serial.read () );
+   //while ( Serial.available() )  myParser.processByte(Serial.read () );
 }
 
 //Wire probe on the reciever is wired to the arduino's serial input.
@@ -143,7 +147,7 @@ void read_sender()
   ReceivedChannelNumber=s;
 }
 
-void Compare(long scannedTag)
+void Compare(String scannedTag)
 {
   int index;
   
@@ -155,7 +159,7 @@ void Compare(long scannedTag)
     char str[10];
     sprintf(str,"%d",index + 1);
     expectingPinNumber = str;
-    int SDtag=row[selected_block][index][0].toInt();
+    String SDtag=row[selected_block][index][0];
     String realReceivingPinNumber=ReceivedChannelNumber;
     String result=" ... ";
     result.concat(deviceName);
@@ -174,7 +178,7 @@ void Compare(long scannedTag)
 //    Serial.print("rfid: ");
 //    Serial.println(scannedTag);
 
-    if(scannedTag == (long)SDtag)
+    if(scannedTag.equals(SDtag))
     {
       Serial.print("TempVal equals tag#");
       if(ReceivedChannelNumber.toInt()==index+1)
@@ -308,14 +312,21 @@ void OpenSD()
 */
 void sayHello(){}
 void sayBye() {}
-void getTag()
+void getHighTag() {
+  high = myParser.getLong();
+  received = true;
+}
+void getLowTag()
 {
-    long rfidNumber;
-    rfidNumber = myParser.getLong();
-
-    Serial.print("found ");
-    Serial.println (rfidNumber);
-    Compare(rfidNumber);
+    if(received) { //only valid if both halves of the tag are recieved
+      
+      String rfidNumber = String(high) + String( myParser.getLong() );
+      Serial.print("found ");
+      Serial.println(rfidNumber);
+      Compare(rfidNumber);
+      received = false;
+      
+    }
 }
 void printSD() {
     Serial.println("---------------------------");

@@ -1,3 +1,9 @@
+/**
+To be loaded on the the arduino uno rfid receiver board. It searches for rfid tags and sends them via serial to the receiver arduino mega board (the master for the receiver device).
+RFID tags are 11 digits (too large for long or int types) and must be split. A more efficient solution would be to redesign the gridmap to translate rfid tags to numbers starting at 0 or 1 and counting up.
+Tags are split into a high variable containing the top 6 digits and a low variable containing the low 5 digits.
+*/
+
 #include <serLCD.h>
 #include <SD.h>
 #include <SoftwareSerial.h>
@@ -20,7 +26,6 @@ void set_flag(void);
 File myFile;
 int flag = 0;
 int Str1[11];
-String tag="";
 int index_row=0;
 String ReceivedChannelNumber;
 
@@ -101,17 +106,24 @@ void set_flag()
 void print_serial()
 {
   if(flag == 1){
-    //print to serial port
-    tag.concat(Str1[8]);
-    tag.concat(Str1[7]);
-    tag.concat(Str1[6]);
-    tag.concat(Str1[5]);
     
-    master.print("rfid ");
-    master.print(tag);
+    String tag_high = "";
+    String tag_low  = "";
+    
+    //print to serial port
+    tag_high.concat(Str1[8]);
+    tag_high.concat(Str1[7]);
+    
+    tag_low.concat(Str1[6]);
+    tag_low.concat(Str1[5]);
+    
+    master.print("rhigh ");
+    master.print(tag_high);
     master.print('\r');
-    tag="";
- 
+    master.print("rlow ");
+    master.print(tag_low);
+    master.print('\r');
+
     delay(100);
     //check_for_notag();
   }
