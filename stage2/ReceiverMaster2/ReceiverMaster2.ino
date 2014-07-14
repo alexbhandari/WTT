@@ -13,10 +13,13 @@
  ** RFID RX - pin 7
  ** RFID TX - pin 8
  ---------------------------------
- ** WTT RX  - pin 2 
- ** WTT TX  - pin 3 --> LCD RX
+ ** WTT Serial RX  - pin 2 
+ ** WTT Serial TX  - pin 3 --> LCD RX (WTT is outgoing only, thus TX is not used for WTT, and instead is used for LCD output)
  ---------------------------------
  ** Serial RX - pin 0 --> White clip(red probe)
+ ---------------------------------
+ ** Rfid Arduiono Uno serial comm RX - pin 4
+ ** Rfid Arduiono Userial comm TX - pin 5
  ---------------------------------
  Red wire is 5V
  Green Wire are GNDs
@@ -218,8 +221,10 @@ void Compare(int scannedTag)
       {
         Serial.print("index: " + index);
         Serial.println(" index_row: " + index_row);
-        Serial.println(" scanned tag: " + scannedTag);
-        Serial.println(" stored tag: " + SDtag);
+        Serial.print(" scanned tag: ");
+        Serial.println(scannedTag);
+        Serial.print(" stored tag: ");
+        Serial.println(SDtag);
         Serial.println("Not valid RFID tag");
         lcd.clear();
         lcd.print("Not valid RFID tag!");
