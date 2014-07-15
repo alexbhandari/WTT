@@ -18,8 +18,8 @@
  ---------------------------------
  ** Serial RX - pin 0 --> White clip(red probe)
  ---------------------------------
- ** Rfid Arduiono Uno serial comm RX - pin 4
- ** Rfid Arduiono Userial comm TX - pin 5
+ ** Rfid Arduiono Uno serial comm RX - pin 4 -> pin 18, TX1
+ ** Rfid Arduiono Userial comm TX - pin 5 -> pin 19, RX1
  ---------------------------------
  Red wire is 5V
  Green Wire are GNDs
@@ -71,10 +71,10 @@ char s3[] PROGMEM = "printsd";
 //This is our look up table. It says which function to call when a particular string is received
 FuncEntry_t functionTable[] PROGMEM = {
 //   String     Function
-    {s0,        sayHello        },
-    {s1,        getHighTag          },
-    {s2,        getLowTag          },
-    {s3,        printSD   }
+    {s0,        sayHello    },
+    {s1,        getHighTag  },
+    {s2,        getLowTag   },
+    {s3,        printSD     }
     };
 //this is the compile time calculation of the length of our look up table.
 int funcTableLength = (sizeof functionTable / sizeof functionTable[0]);     //number of elements in the function table
@@ -83,8 +83,8 @@ MsgParser myParser;     //this creates our parser
 //Init
 void setup()
 {
-//  Serial.begin(9600,SERIAL_8O2);
-    Serial.begin(9600);
+   Serial.begin(9600,SERIAL_8O2); //with parity bit
+// Serial.begin(9600);
 
   //Serial LCD setup
   lcd.clear();
@@ -96,9 +96,8 @@ void setup()
   // (10 on most Arduino boards, 53 on the Mega) must be left as an output
   // or the SD library functions will not work.
   pinMode(10, OUTPUT);
-   
-//  if (!SD.begin(6)) {
-  while (!SD.begin(10,11,12,13)) {
+
+  while (!SD.begin(6,11,12,13)) {
     Serial.println("initialization failed!");
     //return;
   }
@@ -180,7 +179,8 @@ void Compare(String scannedTag)
 
     if(scannedTag.equals(SDtag))
     {
-      Serial.print("TempVal equals tag#");
+      Serial.print("Scanned tag matched to gridmap, pin ");
+      Serial.println(index+1);
       if(ReceivedChannelNumber.toInt()==index+1)
       {
         Serial.print("Match"); //python cloud program looks for "Match"
@@ -197,7 +197,8 @@ void Compare(String scannedTag)
       else
       {
         Serial.print("Not Matching"); //python looks for "Not Matching"
-        Serial.println(result);
+        Serial.print(result);
+        Serial.print("| ");
         lcd.clear();
         lcd.print("X ");
         lcd.print(deviceName);
@@ -206,9 +207,12 @@ void Compare(String scannedTag)
         if (realReceivingPinNumber != "") {
           lcd.print(" wired to ");
           lcd.print(realReceivingPinNumber);
+          Serial.print(" wired to ");
+          Serial.println(realReceivingPinNumber);
         }
         else {
           lcd.print(" not wired");
+          Serial.println("Probe disconnected");
         }
         break;
       }  
@@ -222,7 +226,7 @@ void Compare(String scannedTag)
         Serial.print(" scanned tag: ");
         Serial.println(scannedTag);
         Serial.print(" stored tag: ");
-        Serial.println(SDtag);
+        //Serial.println(SDtag);
         Serial.println("Not valid RFID tag");
         lcd.clear();
         lcd.print("Not valid RFID tag!");
@@ -325,7 +329,6 @@ void getLowTag()
       Serial.println(rfidNumber);
       Compare(rfidNumber);
       received = false;
-      
     }
 }
 void printSD() {
