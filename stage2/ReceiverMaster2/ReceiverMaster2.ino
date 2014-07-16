@@ -83,8 +83,8 @@ MsgParser myParser;     //this creates our parser
 //Init
 void setup()
 {
-   Serial.begin(9600,SERIAL_8O2); //with parity bit
-// Serial.begin(9600);
+   //Serial.begin(9600,SERIAL_8O2); //with parity bit
+ Serial.begin(9600);
 
   //Serial LCD setup
   lcd.clear();
@@ -132,7 +132,6 @@ void read_sender()
   
   while(Serial.available())
   {
-    Serial.println("serial");
     char ch=char(Serial.read());
     if(ch=='_')
     {
@@ -141,11 +140,11 @@ void read_sender()
       s.concat(ch1);
       char ch2=Serial.read();
       s.concat(ch2);
-      break;
       Serial.print("Block ");
       Serial.println(selected_block);
       Serial.print("Pin ");
       Serial.println(s);
+      break;
     }
   }
   ReceivedChannelNumber=s;
