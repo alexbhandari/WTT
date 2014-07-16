@@ -72,7 +72,7 @@ void setup()
   pinMode(10, OUTPUT);
    
 //  if (!SD.begin(6)) {
-  if (!SD.begin(10,11,12,13)) {
+  if (!SD.begin(6,11,12,13)) {
     Serial.println("initialization failed!");
     return;
   }
@@ -122,9 +122,9 @@ void read_sender()
 String getTag()
 {
   String tag;
-  
   while(rfid.available())
   {
+     Serial.print("serial");
      char ch=char(rfid.read());
      if(ch=='_')
       {
@@ -172,7 +172,6 @@ void Compare(String TemptValue)
 
     if(TemptValue.equals(rfidTagnumber))
     {
-      Serial.print("TempVal equals tag#");
       if(ReceivedChannelNumber.toInt()==index+1)
       {
         Serial.print("Match"); //python cloud program looks for "Match"

@@ -132,6 +132,7 @@ void read_sender()
   
   while(Serial.available())
   {
+    Serial.println("serial");
     char ch=char(Serial.read());
     if(ch=='_')
     {
@@ -141,6 +142,8 @@ void read_sender()
       char ch2=Serial.read();
       s.concat(ch2);
       break;
+      Serial.print("Selected ");
+      Serial.println(s);
     }
   }
   ReceivedChannelNumber=s;
@@ -177,14 +180,14 @@ void Compare(String scannedTag)
 //    Serial.print("rfid: ");
 //    Serial.println(scannedTag);
 
-    if(scannedTag.equals(SDtag))
+    if(scannedTag.equals(SDtag)) //the current index matches the index of the scanned tag (this should happen unless the tag is invalid)
     {
-      Serial.print("Scanned tag matched to gridmap, pin ");
+      Serial.print("Scanned tag matched to gridmap on pin ");
       Serial.println(index+1);
-      if(ReceivedChannelNumber.toInt()==index+1)
+      if(ReceivedChannelNumber.toInt()==index+1) //if the pin selected with the probe matches the scanned rfid's pin number
       {
-        Serial.print("Match"); //python cloud program looks for "Match"
-        Serial.println(result);
+        Serial.print("Match");  //python cloud program looks for "Match"
+        Serial.println(result); //data corresponding to the match
         lcd.clear();
         //lcd.selectLine(1);
         lcd.print("Match! ");
@@ -197,10 +200,13 @@ void Compare(String scannedTag)
       else
       {
         Serial.print("Not Matching"); //python looks for "Not Matching"
-        Serial.print(result);
+        Serial.print(result);	      //data corresponding to the mismatch
         Serial.print("| ");
+
+	//example: prints to the lcd "X Tank on 3 wired to 4" if the probe is connected or ..."not wired" if the probe is disconnected
+	//and to the display: "Not Matching Tank 3 2345464352 | wired to 4" or ..." Probe disconnected"
         lcd.clear();
-        lcd.print("X ");
+        lcd.print("X "); 
         lcd.print(deviceName);
         lcd.print(" on ");
         lcd.print(expectingPinNumber);
@@ -217,15 +223,16 @@ void Compare(String scannedTag)
         break;
       }  
     }
+    //if this is the last checked index, then the rfid tag is not recognized from the gridmap
     else 
     {
       if(index==index_row)
       {
-        Serial.print("index: " + index);
-        Serial.println(" index_row: " + index_row);
-        Serial.print(" scanned tag: ");
-        Serial.println(scannedTag);
-        Serial.print(" stored tag: ");
+        //Serial.print("index: " + index);
+        //Serial.println(" index_row: " + index_row);
+        //Serial.print(" scanned tag: ");
+        //Serial.println(scannedTag);
+        //Serial.print(" stored tag: ");
         //Serial.println(SDtag);
         Serial.println("Not valid RFID tag");
         lcd.clear();

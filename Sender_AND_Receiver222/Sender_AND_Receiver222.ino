@@ -1,27 +1,30 @@
-#include <SoftwareSerial.h>
-#include <SD.h>
-#include <Keypad.h>
-#include <SPI.h>
-
-/* added comments for clarity -alex b
+/* added instructions for clarity -alex b
     This file is loaded on to the wire tracing sender unit.
       The external libraries Keypad.h (from the arduino site) must be added
       and a 3rd party library SD.h (from https://github.com/adafruit/SD)
       replaces the standard SD library in the stock version of arduino (this is needed for it to work on the mega version of the arduino board).
 */
+/** Sender code. Sends the pin and block number over serial through the 20 pins attached through RS232 cable.
+    The probe receives these signals and the sender displays the information from the gridmap corresponding to
+    the attached pin from the gridmap. These serial signals are also read by the receiver.
+*/
 
+#include <SoftwareSerial.h>
+#include <SD.h>
+#include <Keypad.h>
+#include <SPI.h>
+
+//program states
 const int WAIT_FOR_BLOCK_SELECT = 0;
 const int READ_PROBE = 1;
-
+int state = WAIT_FOR_BLOCK_SELECT;
+//dimensions of row[][][] and determines how to parse gridmap
 const int BLOCKS = 1;
 const int PINS_PER_BLOCK = 15;
 const int DATA_PER_PIN = 2;
-
-int state = WAIT_FOR_BLOCK_SELECT;
-char key;
-boolean refresh = 1;
-
-///////////////////////////keypad//////////////////////
+String row[BLOCKS][PINS_PER_BLOCK][DATA_PER_PIN] = { "" };
+String s[]={"01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16","17","18","19","20"};
+//keypad setup
 const byte ROWS = 4; //four rows
 const byte COLS = 3; //three columns
 char keys[ROWS][COLS] = {
@@ -32,20 +35,14 @@ char keys[ROWS][COLS] = {
 };
 byte rowPins[ROWS] = {5, 4, 3, 2}; //connect to the row pinouts of the keypad
 byte colPins[COLS] = {8, 7, 6}; //connect to the column pinouts of the keypad
-
 Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
-
 int n=16;
 String syster=NULL;
-////////////////////////////////////////////////////////
 
-String s[]={"01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16","17","18","19","20"};
+//other variables
+char key;
 File myFile;
-
-String row[BLOCKS][PINS_PER_BLOCK][DATA_PER_PIN] = { "" };
-//static const String empty[5] = { "" };
-//memcpy(&arr, &zero, sizeof arr);
-
+boolean refresh = 1;
 int max_row_index=0;
 int selected_block;
 String ReceivedChannelNumber;
@@ -97,7 +94,7 @@ void loop() {
       if(refresh) {
         refresh = 0;
         selectLineOne();
-        Serial.print("Choose block number:");
+        Serial.print("Choose block        number:");
       }
       key = keypad.getKey();
       int num = (int)(key) - 48; //convert ascii to integer
@@ -159,7 +156,7 @@ void read_sender()
   {
     refresh = 0;
     clearLCD();
-    Serial.print("-scanning probe- (* to go back)");
+    Serial.print("-scanning probe-     (* to go back)");
   }
   
   while(Serial.available())
