@@ -91,10 +91,10 @@ void loop() {
     
     case WAIT_FOR_BLOCK_SELECT:
     {
-      if(refresh) {
+      if(refresh) { //prevents flooding the serial communication with the computer
         refresh = 0;
         selectLineOne();
-        Serial.print("Choose block        number:");
+        Serial.print("Choose block        number:"); //spacing puts number: on second line
       }
       key = keypad.getKey();
       int num = (int)(key) - 48; //convert ascii to integer
@@ -112,7 +112,7 @@ void loop() {
       read_sender(); //reads the selected pin number into RecievedChannelNumber
       showChannelName(); //prints row[selected_block][RecievedChannelNumber][NAME]
       
-      if(keypad.getKey() == '*') {
+      if(keypad.getKey() == '*') { //go back to block select
         clearLCD();
         state = WAIT_FOR_BLOCK_SELECT;
         refresh = 1;
@@ -129,7 +129,6 @@ void loop() {
 void showChannelName()
 {
   int index;
-  //int errorFlag=0; //0 is correct(), 1 is wrong.
  
   for(index=0;index<=max_row_index;index++) 
   {
@@ -164,6 +163,7 @@ void read_sender()
     char ch=char(Serial.read());
     if(ch=='_')
     {
+      Serial.read(); //ignore selected_block we already know this
       char ch1=Serial.read();
       s.concat(ch1);
       char ch2=Serial.read();
@@ -263,6 +263,7 @@ void sendChannelString()
     SoftwareSerial wtt(2,n);
      wtt.begin(9600);
      wtt.print("_");
+     wtt.print(selected_block);
      wtt.print(s[n-22]);
   }
 }

@@ -142,7 +142,9 @@ void read_sender()
       char ch2=Serial.read();
       s.concat(ch2);
       break;
-      Serial.print("Selected ");
+      Serial.print("Block ");
+      Serial.println(selected_block);
+      Serial.print("Pin ");
       Serial.println(s);
     }
   }
