@@ -133,9 +133,10 @@ void read_sender()
   while(Serial.available())
   {
     char ch=char(Serial.read());
+    Serial.println(ch);
     if(ch=='_')
     {
-      selected_block = (int)(Serial.read()-48);
+      selected_block = (int)(Serial.read())-48;
       char ch1=Serial.read();
       s.concat(ch1);
       char ch2=Serial.read();
