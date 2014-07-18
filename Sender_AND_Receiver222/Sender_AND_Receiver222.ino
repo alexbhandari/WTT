@@ -13,14 +13,16 @@
 #include <SD.h>
 #include <Keypad.h>
 #include <SPI.h>
+#include <avr/pgmspace.h>
+#include <MsgParser.h>
 
 //program states
 const int WAIT_FOR_BLOCK_SELECT = 0;
 const int READ_PROBE = 1;
 int state = WAIT_FOR_BLOCK_SELECT;
 //dimensions of row[][][] and determines how to parse gridmap
-const int BLOCKS = 1;
-const int PINS_PER_BLOCK = 15;
+const int BLOCKS = 5;
+const int PINS_PER_BLOCK = 20;
 const int DATA_PER_PIN = 2;
 String row[BLOCKS][PINS_PER_BLOCK][DATA_PER_PIN] = { "" };
 String s[]={"01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16","17","18","19","20"};
@@ -39,14 +41,30 @@ Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
 int n=16;
 String syster=NULL;
 
+//msgparser vars
+
+//list of strings. You can have as many as you want.
+//each string is saved in flash memory only and does not take up any ram.
+char s0[] PROGMEM = "block";
+char s1[] PROGMEM = "pin";
+char s2[] PROGMEM = "printsd";
+//This is our look up table. It says which function to call when a particular string is received
+FuncEntry_t functionTable[] PROGMEM = {
+//   String     Function
+    {s0,        setBlock    },
+    {s1,        setPin  },
+    {s2,        printSD     }
+    };
+//this is the compile time calculation of the length of our look up table.
+int funcTableLength = (sizeof functionTable / sizeof functionTable[0]);     //number of elements in the function table
+MsgParser myParser;     //this creates our parser
+
 //other variables
 char key;
 File myFile;
 boolean refresh = 1;
-int max_row_index=0;
 int selected_block;
-String ReceivedChannelNumber;
-
+int ReceivedChannelNumber;
 int first = 1;
 
 void setup()
@@ -78,10 +96,11 @@ void setup()
   selectLineOne();
   clearLCD();
   
-  //need to figure out where row is populated
-  // Serial.println(row[0]);
-  // Serial.println(row[1]);
-  // Serial.println(row[0].substring(3,14)); 
+  // msgparser setup
+  myParser.setTable(functionTable, funcTableLength);      //tell the parser to use our lookup table
+  myParser.setHandlerForCmdNotFound(commandNotFound);     //Tell the parser which function to call when it gets a command it doesn't handle
+
+
 }
 
 void loop() {
@@ -94,7 +113,9 @@ void loop() {
       if(refresh) { //prevents flooding the serial communication with the computer
         refresh = 0;
         selectLineOne();
-        Serial.print("Choose block        number:"); //spacing puts number: on second line
+        Serial.print("Choose block"); //spacing puts number: on second line
+        selectLineTwo();
+        Serial.print("number:");
       }
       key = keypad.getKey();
       int num = (int)(key) - 48; //convert ascii to integer
@@ -108,16 +129,33 @@ void loop() {
     } 
     case READ_PROBE:
     {
-      sendChannelString(); //sends the pin numbers through the pins using serial
-      read_sender(); //reads the selected pin number into RecievedChannelNumber
-      showChannelName(); //prints row[selected_block][RecievedChannelNumber][NAME]
-      
+      if(!Serial.available() && refresh == 1)
+      {
+         refresh = 0;
+         clearLCD();
+         selectLineOne();
+         Serial.print("-scanning probe-");
+         selectLineTwo();
+         Serial.print(" (* to go back)");
+      }
+      if(Serial.available()) {
+         while ( Serial.available() )  myParser.processByte(Serial.read () );
+         //prints row[selected_block][ReceivedChannelNumber][NAME]
+         clearLCD();
+         selectLineOne();
+         Serial.print(getName(ReceivedChannelNumber - 1)); //prints the selected pin
+         selectLineTwo();
+         Serial.print("Pin: ");
+         Serial.print(ReceivedChannelNumber);
+	 refresh = 1;
+         delay(1000);
+      }
       if(keypad.getKey() == '*') { //go back to block select
         clearLCD();
         state = WAIT_FOR_BLOCK_SELECT;
         refresh = 1;
       }
-      
+      sendChannelString(); //sends the pin numbers through the pins using serial
       break;
     }  
     default:  //should not occur
@@ -125,57 +163,11 @@ void loop() {
   }
 
 }
-
-void showChannelName()
-{
-  int index;
- 
-  for(index=0;index<=max_row_index;index++) 
-  {
-    if(ReceivedChannelNumber.toInt()==index+1) {
-      clearLCD();
-      String str = row[selected_block][index][1];
-      //str = str.substring(0,str.length()-1);
-      Serial.print(str); //prints the selected pin
-      selectLineTwo();
-      Serial.print("Pin: ");
-      Serial.print(index+1);
-      break;
-     }   
-  }
+String getName(int index) {
+   String deviceName = row[selected_block][index][1]; 
+   deviceName = deviceName.substring(0,deviceName.length()-1);
+   return deviceName;
 }
-
-//Wire probe on the reciever is wired to the arduino's serial input.
-//This method reads the communications over this line...
-//    input:_123_456 is read into ReceivedChannelNumber as 123 and 456
-void read_sender()
-{
-  String s;
-  if(!Serial.available() && refresh == 1)
-  {
-    refresh = 0;
-    clearLCD();
-    Serial.print("-scanning probe-     (* to go back)");
-  }
-  
-  while(Serial.available())
-  {
-    char ch=char(Serial.read());
-    if(ch=='_')
-    {
-      Serial.read(); //ignore selected_block we already know this
-      char ch1=Serial.read();
-      s.concat(ch1);
-      char ch2=Serial.read();
-      s.concat(ch2);
-      refresh = 1;
-      
-      break;
-    }
-  }
-  ReceivedChannelNumber=s;
-}
-
 /**Reads the gridmap off the sd card using carrage returns ('\n') to delimit different pins
  **and * or # to separate pin number, rfid_tag, and device name.
 Gridmap format:
@@ -208,23 +200,17 @@ void OpenSD()
        if(pin > PINS_PER_BLOCK) {
          block++;
          pin=1;
-         Serial.print("block");
-         Serial.println(block);
        }
 
        if(file_contents=='\n')
        {
          pin++;
          data_index=0;
-         Serial.print("pin");
-         Serial.println(pin);
        }
 
        else if(file_contents=='*' || file_contents=='#')
        {
          data_index++;
-         Serial.print("data");
-         Serial.println(data_index);
        }
 
        else
@@ -236,7 +222,6 @@ void OpenSD()
        }
 
     }
-    max_row_index = PINS_PER_BLOCK - 1; //sets the max row index to one less than the number of pins in the grid map
     // close the file:
     selectLineTwo();
     Serial.print("Finished reading");
@@ -260,11 +245,14 @@ void sendChannelString()
 {
   for(int n=22;n<42;n++)
   {
-    SoftwareSerial wtt(2,n);
+     SoftwareSerial wtt(2,n);
      wtt.begin(9600);
-     wtt.print("_");
+     wtt.print("block ");
      wtt.print(selected_block);
+     wtt.print("\r");
+     wtt.print("pin ");
      wtt.print(s[n-22]);
+     wtt.print("\r");
   }
 }
 
@@ -319,4 +307,34 @@ void setSize(int lines, int wide)
   Serial.write(lines); //lines:4 lines is 5; 2 lines is 6;
   Serial.write(wide); //wide: 20 characters wide is 3;  16 characters wide is 4;
   delay(10);
+}
+
+//msgparser methods
+//Wire probe on the reciever is wired to the arduino's serial input.
+//This method reads the communications over this line...
+void setPin()
+{
+  ReceivedChannelNumber = myParser.getInt();
+}
+void setBlock() {}
+void printSD() {
+    Serial.println("---------------------------");
+    Serial.println("SD printout:");
+    for(int i=0;i<BLOCKS;i++) {
+      Serial.print("Block ");
+      Serial.println(i+1);
+      for(int j=0;j<PINS_PER_BLOCK;j++) {
+        Serial.print("rfid tag: ");
+        Serial.print(row[i][j][0]);
+        Serial.print(" | device name: ");
+        Serial.println(row[i][j][1]);
+      }
+    }
+}
+//This function is called when the msgParser gets a command that it didnt handle.
+void commandNotFound(uint8_t* pCmd, uint16_t length)
+{
+    Serial.print("Command not found: ");
+    Serial.write(pCmd, length); //print out what command was not found
+    Serial.println();           //print out a new line
 }

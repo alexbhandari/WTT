@@ -36,8 +36,12 @@
 SoftwareSerial rfid(4, 5);
 serLCD lcd(3);
 
-const int BLOCKS = 2;
-const int PINS_PER_BLOCK = 5;
+const int MATCH    = 1;
+const int NO_MATCH = 2;
+const int NO_PROBE = 3;
+
+const int BLOCKS = 5;
+const int PINS_PER_BLOCK = 20;
 const int DATA_PER_PIN = 2;
 
 //Prototypes
@@ -48,13 +52,14 @@ void print_serial(void);
 void read_serial(void);
 void seek(void);
 void set_flag(void);
+String getName(int);
 
 //Global var
 File myFile;
 int flag = 0;
 int Str1[11];
-int index_row=0;
-String ReceivedChannelNumber;
+int index_row = PINS_PER_BLOCK - 1;
+int ReceivedChannelNumber = -1;
 static int selected_block;
 String row[BLOCKS][PINS_PER_BLOCK][DATA_PER_PIN] = { "" };
 long high = 0;
@@ -64,17 +69,19 @@ boolean received = false;
 
 //list of strings. You can have as many as you want.
 //each string is saved in flash memory only and does not take up any ram.
-char s0[] PROGMEM = "start";
-char s1[] PROGMEM = "rhigh";
-char s2[] PROGMEM = "rlow";
-char s3[] PROGMEM = "printsd";
+char s0[] PROGMEM = "block";
+char s1[] PROGMEM = "pin";
+char s2[] PROGMEM = "rhigh";
+char s3[] PROGMEM = "rlow";
+char s4[] PROGMEM = "printsd";
 //This is our look up table. It says which function to call when a particular string is received
 FuncEntry_t functionTable[] PROGMEM = {
 //   String     Function
-    {s0,        sayHello    },
-    {s1,        getHighTag  },
-    {s2,        getLowTag   },
-    {s3,        printSD     }
+    {s0,        setBlock    },
+    {s1,        setPin      },
+    {s2,        getHighTag  },
+    {s3,        getLowTag   },
+    {s4,        printSD     }
     };
 //this is the compile time calculation of the length of our look up table.
 int funcTableLength = (sizeof functionTable / sizeof functionTable[0]);     //number of elements in the function table
@@ -104,8 +111,6 @@ void setup()
   Serial.println("initialization done.");
  
   OpenSD();
-  
-  printSD();
 
 //msg parser setup
     Serial1.begin(9600);
@@ -117,92 +122,42 @@ void setup()
 
 void loop()
 {
-   read_sender();
+   if(Serial.available() == 0) {
+      ReceivedChannelNumber = -1;
+   }
    //if we received any bytes from the serial port, pass them to the parser
    while ( Serial1.available() )  myParser.processByte(Serial1.read () );
-   //while ( Serial.available() )  myParser.processByte(Serial.read () );
-}
-
-//Wire probe on the reciever is wired to the arduino's serial input.
-//This method reads the communications over this line...
-//    input:_123_456 is read into ReceivedChannelNumber as 123 and 456
-void read_sender()
-{
-  String s;
-  
-  while(Serial.available())
-  {
-    char ch=char(Serial.read());
-    Serial.println(ch);
-    if(ch=='_')
-    {
-      selected_block = (int)(Serial.read())-48;
-      char ch1=Serial.read();
-      s.concat(ch1);
-      char ch2=Serial.read();
-      s.concat(ch2);
-      Serial.print("Block ");
-      Serial.println(selected_block);
-      Serial.print("Pin ");
-      Serial.println(s);
-      break;
-    }
-  }
-  ReceivedChannelNumber=s;
+   while ( Serial.available() )  myParser.processByte(Serial.read () );
+   delay(500);
 }
 
 void Compare(String scannedTag)
 {
   int index;
+  String deviceName = getName(index);
   
   for(index=0;index<=index_row;index++)
   {
-    String deviceName=row[selected_block][index][1];
-    deviceName = deviceName.substring(0,deviceName.length()-1);
-    String expectingPinNumber;
-    char str[10];
-    sprintf(str,"%d",index + 1);
-    expectingPinNumber = str;
+    int scannedPin = index + 1;
     String SDtag=row[selected_block][index][0];
-    String realReceivingPinNumber=ReceivedChannelNumber;
-    String result=" ... ";
-    result.concat(deviceName);
-    result.concat(" ");
-    result.concat(expectingPinNumber);
-    result.concat(" ");
-    result.concat(scannedTag);
-    result.concat(" ");
-    result.concat(realReceivingPinNumber);
-    result.concat(" ");
-
-//    Serial.print("block: ");
-//    Serial.println(selected_block);
-//    Serial.print("result: ");
-//    Serial.println(result);
-//    Serial.print("rfid: ");
-//    Serial.println(scannedTag);
-
     if(scannedTag.equals(SDtag)) //the current index matches the index of the scanned tag (this should happen unless the tag is invalid)
     {
-      Serial.print("Scanned tag matched to gridmap on pin ");
-      Serial.println(index+1);
-      if(ReceivedChannelNumber.toInt()==index+1) //if the pin selected with the probe matches the scanned rfid's pin number
+      if(ReceivedChannelNumber == index+1) //if the pin selected with the probe matches the scanned rfid's pin number
       {
         Serial.print("Match");  //python cloud program looks for "Match"
-        Serial.println(result); //data corresponding to the match
+        Serial.println(getResult(index,scannedTag,MATCH)); //data corresponding to the match
         lcd.clear();
         //lcd.selectLine(1);
         lcd.print("Match! ");
         //lcd.selectLine(2);
         lcd.print(deviceName);
-        lcd.print(" on ");
-        lcd.print(expectingPinNumber);
+        lcd.print("  on ");
+        lcd.print(scannedPin);
         break;
       }
       else
       {
         Serial.print("Not Matching"); //python looks for "Not Matching"
-        Serial.print(result);	      //data corresponding to the mismatch
         Serial.print("| ");
 
 	//example: prints to the lcd "X Tank on 3 wired to 4" if the probe is connected or ..."not wired" if the probe is disconnected
@@ -211,16 +166,15 @@ void Compare(String scannedTag)
         lcd.print("X "); 
         lcd.print(deviceName);
         lcd.print(" on ");
-        lcd.print(expectingPinNumber);
-        if (realReceivingPinNumber != "") {
+        lcd.print(scannedPin);
+        if (ReceivedChannelNumber != -1) {
           lcd.print(" wired to ");
-          lcd.print(realReceivingPinNumber);
-          Serial.print(" wired to ");
-          Serial.println(realReceivingPinNumber);
+          lcd.print(ReceivedChannelNumber);
+          Serial.println(getResult(index,scannedTag,NO_MATCH));	      //data corresponding to the mismatch
         }
         else {
           lcd.print(" not wired");
-          Serial.println("Probe disconnected");
+          Serial.println(getResult(index,scannedTag,NO_PROBE));	      //data corresponding to the mismatch
         }
         break;
       }  
@@ -244,16 +198,37 @@ void Compare(String scannedTag)
     
   }
 }
-
+String getName(int index) {
+   String deviceName = row[selected_block][index][1]; 
+   deviceName = deviceName.substring(0,deviceName.length()-1);
+   return deviceName;
+}
+String getResult(int index, String scannedTag, int state) {
+   String SDtag=row[selected_block][index][0];
+   String result=" Name: ";
+   result.concat(getName(index));
+   result.concat(", Pin: ");
+   result.concat(index + 1);
+   result.concat(", Tag: ");
+   result.concat(scannedTag);
+   switch(state) {
+      case MATCH:
+         break;
+      case NO_MATCH:
+         result.concat(" - Probe on pin ");
+         result.concat(ReceivedChannelNumber);
+         break;
+      case NO_PROBE:
+         result.concat(" - Probe disconnected");
+         break;
+      default:
+         break;
+   }
+   return result;
+}
 
 void OpenSD()
 {
-//  if (SD.exists("MAPPING.txt")) {
-//    Serial.println("MAPPING.txt exists.");
-//  }
-//  else {
-//    Serial.println("MAPPING.txt doesn't exist.");
-//  }
   myFile = SD.open("MAPPING.txt");
   if (myFile) {
     Serial.print("Reading from SD card...");
@@ -273,23 +248,17 @@ void OpenSD()
        if(pin > PINS_PER_BLOCK) {
          block++;
          pin=1;
-         Serial.print("block");
-         Serial.println(block);
        }
 
        if(file_contents=='\n')
        {
          pin++;
          data_index=0;
-         Serial.print("pin");
-         Serial.println(pin);
        }
 
        else if(file_contents=='*' || file_contents=='#')
        {
          data_index++;
-         Serial.print("data");
-         Serial.println(data_index);
        }
 
        else
@@ -300,17 +269,12 @@ void OpenSD()
          }
        }
     }
-    Serial.print("hi");    
-    index_row = PINS_PER_BLOCK - 1;
     
     // close the file:
     Serial.print("Finished reading");
-//    lcd.clear();
-//    lcd.print("Finished reading");
     delay(500);
-  
     myFile.close();
-//    lcd.clear();
+
   } 
   else {
     // if the file didn't open, print an error:
@@ -323,8 +287,15 @@ void OpenSD()
 
 /**msgparser methods
 */
-void sayHello(){}
-void sayBye() {}
+//Wire probe on the reciever is wired to the arduino's serial input.
+//This method reads the communications over this line...
+void setPin()
+{
+  ReceivedChannelNumber = myParser.getInt();
+}
+void setBlock() {
+  selected_block = myParser.getInt() - 1;
+}
 void getHighTag() {
   high = myParser.getLong();
   received = true;
@@ -334,8 +305,6 @@ void getLowTag()
     if(received) { //only valid if both halves of the tag are recieved
       
       String rfidNumber = String(high) + String( myParser.getLong() );
-      Serial.print("found ");
-      Serial.println(rfidNumber);
       Compare(rfidNumber);
       received = false;
     }
@@ -344,6 +313,8 @@ void printSD() {
     Serial.println("---------------------------");
     Serial.println("SD printout:");
     for(int i=0;i<BLOCKS;i++) {
+      Serial.print("Block ");
+      Serial.println(i+1);
       for(int j=0;j<PINS_PER_BLOCK;j++) {
         Serial.print("rfid tag: ");
         Serial.print(row[i][j][0]);
@@ -355,7 +326,7 @@ void printSD() {
 //This function is called when the msgParser gets a command that it didnt handle.
 void commandNotFound(uint8_t* pCmd, uint16_t length)
 {
-    Serial.print("Command not found: ");
-    Serial.write(pCmd, length); //print out what command was not found
-    Serial.println();           //print out a new line
+    //Serial.print("Command not found: ");
+    //Serial.write(pCmd, length); //print out what command was not found
+    //Serial.println();           //print out a new line
 }
