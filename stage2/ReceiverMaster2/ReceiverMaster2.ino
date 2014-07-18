@@ -168,12 +168,12 @@ void Compare(String scannedTag)
         lcd.print(" on ");
         lcd.print(scannedPin);
         if (ReceivedChannelNumber != -1) {
-          lcd.print(" wired to ");
+          lcd.print("  wired to ");
           lcd.print(ReceivedChannelNumber);
           Serial.println(getResult(index,scannedTag,NO_MATCH));	      //data corresponding to the mismatch
         }
         else {
-          lcd.print(" not wired");
+          lcd.print("  not wired");
           Serial.println(getResult(index,scannedTag,NO_PROBE));	      //data corresponding to the mismatch
         }
         break;
